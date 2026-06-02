@@ -51,10 +51,13 @@
 ```bash
 # 1. Скачать скрипт на сервер
 wget https://raw.githubusercontent.com/vtslynet-cyber/vtsly-backup-s3-tg/main/vtsly-backup.sh
+```
 # или
+```bash
 curl -O https://raw.githubusercontent.com/vtslynet-cyber/vtsly-backup-s3-tg/main/vtsly-backup.sh
-
+```
 # 2. Запустить мастер настройки (поставит зависимости, спросит настройки, добавит в cron)
+```bash
 sudo bash vtsly-backup.sh setup
 ```
 
