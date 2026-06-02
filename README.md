@@ -48,8 +48,8 @@
 
 ## 🚀 Установка и запуск
 
-```bash
 # 1. Скачать скрипт на сервер
+```bash
 wget https://raw.githubusercontent.com/vtslynet-cyber/vtsly-backup-s3-tg/main/vtsly-backup.sh
 ```
 # или
