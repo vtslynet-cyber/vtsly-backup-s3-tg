@@ -64,7 +64,7 @@ sudo bash vtsly-backup.sh setup
 После установки скрипт доступен как команда `vtsly-backup`:
 
 ```bash
-vtsly-backup            # открыть меню (всё на цифрах)
+vtsly-backup
 ```
 
 ## 🧭 Меню
