@@ -156,6 +156,7 @@ t() {
     ru::s3_fail)      f="Не удалось получить доступ к S3. Проверь ключи/endpoint/bucket." ;; en::s3_fail) f="Cannot access S3. Check keys/endpoint/bucket." ;;
     # --- cron ---
     ru::cron_set)     f="Cron настроен: %s  (каждые %s ч)" ;; en::cron_set) f="Cron set: %s  (every %s h)" ;;
+    ru::cron_reboot)  f="Добавлен догоняющий бэкап после перезагрузки (@reboot)." ;; en::cron_reboot) f="Added catch-up backup after reboot (@reboot)." ;;
     ru::cron_removed) f="Задача cron удалена." ;;         en::cron_removed) f="Cron job removed." ;;
     ru::cron_none)    f="Записи VTSLY в cron не найдено." ;; en::cron_none) f="No VTSLY cron entry found." ;;
     ru::cron_active)  f="Активная задача cron:" ;;        en::cron_active)  f="Active cron job:" ;;
@@ -415,12 +416,27 @@ ensure_deps() {
   fi
   install_awscli || warn "$(t aws_optional)"
 
+  enable_cron_service
+  ok "$(t deps_ready)"
+}
+
+# Включает демон cron в автозапуск на разных init-системах,
+# чтобы расписание поднималось само после перезагрузки сервера.
+enable_cron_service() {
   if command -v systemctl >/dev/null 2>&1; then
     systemctl enable --now cron    >/dev/null 2>&1 \
     || systemctl enable --now crond >/dev/null 2>&1 \
     || systemctl enable --now cronie >/dev/null 2>&1 || true
+  elif command -v rc-update >/dev/null 2>&1; then        # Alpine / OpenRC
+    rc-update add crond default >/dev/null 2>&1 || rc-update add cron default >/dev/null 2>&1 || true
+    rc-service crond start      >/dev/null 2>&1 || rc-service cron start      >/dev/null 2>&1 || true
+  elif command -v chkconfig >/dev/null 2>&1; then         # старый RHEL/sysvinit
+    chkconfig crond on >/dev/null 2>&1 || chkconfig cron on >/dev/null 2>&1 || true
+    service crond start >/dev/null 2>&1 || service cron start >/dev/null 2>&1 || true
+  elif command -v update-rc.d >/dev/null 2>&1; then        # старый Debian/sysvinit
+    update-rc.d cron enable >/dev/null 2>&1 || true
+    service cron start      >/dev/null 2>&1 || true
   fi
-  ok "$(t deps_ready)"
 }
 
 # ========================== КОНФИГ =============================
@@ -686,9 +702,14 @@ install_cron() {
     schedule="0 */${hours} * * *"
   fi
   local line="${schedule} ${VTSLY_BIN} backup auto >/dev/null 2>&1 ${CRON_TAG}"
-  ( crontab -l 2>/dev/null | grep -v "$CRON_TAG"; echo "$line" ) | crontab -
+  # Догоняющий бэкап после загрузки сервера: ждём 120с (поднимется сеть/сервисы),
+  # затем делаем бэкап — компенсирует пропуск, если сервер лежал во время расписания.
+  local reboot_line="@reboot sleep 120 && ${VTSLY_BIN} backup auto >/dev/null 2>&1 ${CRON_TAG}"
+  ( crontab -l 2>/dev/null | grep -v "$CRON_TAG"; echo "$line"; echo "$reboot_line" ) | crontab -
+  enable_cron_service
   ok "$(t cron_set "${C_BOLD}${schedule}${C_RESET}" "$hours")"
-  log "CRON installed: $line"
+  ok "$(t cron_reboot)"
+  log "CRON installed: $line | $reboot_line"
 }
 
 remove_cron() {
